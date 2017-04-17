@@ -3,22 +3,27 @@ package com.capurso.androidthings_analogrw;
 import android.app.Activity;
 import android.os.Bundle;
 import android.os.Handler;
-import android.util.Log;
 
 import com.capurso.androidthings_analogrw.driver.adc.Adc;
 import com.capurso.androidthings_analogrw.driver.adc.AdcChannel;
 import com.capurso.androidthings_analogrw.driver.adc.Mcp3002;
 import com.capurso.androidthings_analogrw.driver.dac.Dac;
-import com.capurso.androidthings_analogrw.driver.dac.Mcp4725;
+import com.capurso.androidthings_analogrw.driver.dac.Mcp4725Impl;
 import com.capurso.androidthings_analogrw.driver.pwmled.PwmLed;
 import com.google.android.things.contrib.driver.button.Button;
 import com.google.android.things.pio.PeripheralManagerService;
 
 import java.io.IOException;
 
-public class MainActivity extends Activity {
-    private static final String TAG = MainActivity.class.getName();
+import timber.log.Timber;
 
+/**
+ * Reads from two potentiometers and outputs the corresponding voltage to two LEDs.
+ * Reading in analog values from the potentiometers requires an external ADC for the Raspberry Pi.
+ * Outputting to one LED is done via PWM while the other is done via an external DAC.
+ * A push button is used to start and stop reading and outputting.
+ */
+public class MainActivity extends Activity {
     private static final String ENABLE_BUTTON_PIN_NAME = "BCM6";
 
     private static final String LED_PWM_PIN_NAME = "PWM0";
@@ -26,6 +31,10 @@ public class MainActivity extends Activity {
     private static final String ADC_SPI_DEVICE_NAME = "SPI0.0";
 
     private static final String DAC_I2C_DEVICE_NAME = "I2C1";
+
+    private static final long POT_SAMPLE_DELAY = 250;
+
+    private static final long BUTTON_DEBOUNCE_DELAY = 50;
 
     private Button enableBtn;
 
@@ -47,23 +56,28 @@ public class MainActivity extends Activity {
 
         try {
             enableBtn = new Button(ENABLE_BUTTON_PIN_NAME, Button.LogicState.PRESSED_WHEN_HIGH);
-            enableBtn.setDebounceDelay(50);
+            enableBtn.setDebounceDelay(BUTTON_DEBOUNCE_DELAY);
             enableBtn.setOnButtonEventListener(new EnableListener());
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
+    /**
+     * Starts / stops reading from potentiometers (and outputting to LEDs) when the
+     * button is pressed.
+     */
     private class EnableListener implements Button.OnButtonEventListener {
         @Override
         public void onButtonEvent(Button button, boolean pressed) {
             if (pressed) {
                 if (!enabled) {
-                    Log.d(TAG, "Initializing I/O devices");
+                    Timber.d("Initializing I/O devices");
+
                     openDevices();
                     startReading();
                 } else {
-                    Log.d(TAG, "Closing I/O devices");
+                    Timber.d("Closing I/O devices");
                     closeDevices();
                 }
                 enabled = !enabled;
@@ -71,6 +85,10 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * Read from the potentiometers over and over and output the values to the
+     * corresponding LEDs.
+     */
     private class ReadPotsAndOutput implements Runnable {
         @Override
         public void run() {
@@ -78,7 +96,7 @@ public class MainActivity extends Activity {
                 if (enabled) {
                     readAndSetLedWithPwm();
                     readAndSetLedWithAnalog();
-                    handler.postDelayed(new ReadPotsAndOutput(), 1000);
+                    handler.postDelayed(new ReadPotsAndOutput(), POT_SAMPLE_DELAY);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -87,18 +105,23 @@ public class MainActivity extends Activity {
 
         private void readAndSetLedWithPwm() throws Exception {
             int reading = adc.analogRead(AdcChannel.CHANNEL_1);
+
+            // Convert reading to a percentage for the duty cycle
             double duty = ((double) reading / Mcp3002.MAX_VALUE) * 100;
-            duty = duty < 1 ? 0 : duty;
-            duty = duty > 99 ? 100 : duty;
-            Log.i(TAG, "Channel 1 Read: " + reading + ", pwm duty: " + duty);
+            duty = correctValueIfNeeded(duty, 100, 0, 1);
+
+            Timber.d("Channel 1: read %s, pwm duty %s", reading, duty);
             pwmLed.setDuty(duty);
         }
 
         private void readAndSetLedWithAnalog() throws Exception {
             int reading = adc.analogRead(AdcChannel.CHANNEL_2);
-            reading = reading < 1 ? 0 : reading;
-            reading = reading > 4095 ? 4095 : reading;
-            Log.i(TAG, "Channel 2 Read: " + reading + ", writing to DAC");
+            reading = (int) correctValueIfNeeded(reading, adc.getMaxValue(), adc.getMinValue(), 1);
+
+            // Convert from ADC's range to the DAC's range
+            reading = (int) (((double) reading / adc.getMaxValue()) * dac.getMaxValue());
+
+            Timber.d("Channel 2: read %s, sending to DAC", reading);
             dac.analogWrite(reading);
         }
     }
@@ -116,10 +139,10 @@ public class MainActivity extends Activity {
 
     private void printDevices() {
         PeripheralManagerService peripheralManagerService = new PeripheralManagerService();
-        Log.i(TAG, peripheralManagerService.getGpioList().toString());
-        Log.i(TAG, peripheralManagerService.getSpiBusList().toString());
-        Log.i(TAG, peripheralManagerService.getPwmList().toString());
-        Log.i(TAG, peripheralManagerService.getI2cBusList().toString());
+        Timber.i(peripheralManagerService.getGpioList().toString());
+        Timber.i(peripheralManagerService.getSpiBusList().toString());
+        Timber.i(peripheralManagerService.getPwmList().toString());
+        Timber.i(peripheralManagerService.getI2cBusList().toString());
     }
 
     private void openDevices() {
@@ -128,7 +151,10 @@ public class MainActivity extends Activity {
             pwmLed.setDuty(0);
 
             adc = new Mcp3002(ADC_SPI_DEVICE_NAME);
-            dac = new Mcp4725(DAC_I2C_DEVICE_NAME);
+            dac = new Mcp4725Impl(DAC_I2C_DEVICE_NAME);
+
+            // Uncomment (and comment the line above) to try the Arduino-proxy DAC
+//            dac = new ArduinoProxyDac(DAC_I2C_DEVICE_NAME);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -148,6 +174,20 @@ public class MainActivity extends Activity {
                 e.printStackTrace();
             }
         }
+    }
+
+    /**
+     * Simple threshold-based checks to make sure the value does not exceed a max or min.
+     *
+     * @return value if it is not within threshold from max or min. Else, returns max or min.
+     */
+    private double correctValueIfNeeded(double value, double max, double min, double threshold) {
+        if (value > max - threshold) {
+            return max;
+        } else if (value < min + threshold) {
+            return min;
+        }
+        return value;
     }
 }
 

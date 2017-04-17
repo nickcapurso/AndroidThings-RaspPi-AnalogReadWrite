@@ -10,8 +10,11 @@ import com.google.android.things.pio.Pwm;
 
 import java.io.IOException;
 
+/**
+ * Used to interface with an LED which is lit via PWM.
+ */
 public class PwmLed implements AutoCloseable {
-    // High frequency is not needed for an LED
+    // Adequate frequency for PWM for LEDs
     private static final int DEFAULT_FREQUENCY = 120;
 
     private Pwm led;
