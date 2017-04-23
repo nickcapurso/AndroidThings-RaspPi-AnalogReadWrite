@@ -14,8 +14,8 @@ public class ArduinoProxyDac extends Mcp4725 {
     }
 
     /**
-     * Sends the shifted value (according to the format required by the MCP4725) to an
-     * Arduino, which will then proxy them forward to the actual DAC.
+     * Sends the shifted 12-bit value (in the format for the DAC's Write Command for DAC Input
+     * Register (no EEPROM)) to the Arduino, which will then proxy them forward to the actual DAC.
      * <p>
      * See {@link Mcp4725Impl} for more details.
      */

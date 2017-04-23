@@ -16,9 +16,9 @@ import timber.log.Timber;
  * http://ww1.microchip.com/downloads/en/DeviceDoc/21294E.pdf
  */
 public class Mcp3002 implements Adc<AdcChannel> {
-    public static final int MAX_VALUE = 1023;
+    private static final int MAX_VALUE = 1023;
 
-    public static final int MIN_VALUE = 0;
+    private static final int MIN_VALUE = 0;
 
     private SpiDevice adc;
 
@@ -33,7 +33,7 @@ public class Mcp3002 implements Adc<AdcChannel> {
 
         PeripheralManagerService peripheralManagerService = new PeripheralManagerService();
         adc = peripheralManagerService.openSpiDevice(spiName);
-        adc.setMode(SpiDevice.MODE0);
+        adc.setMode(SpiDevice.MODE0); // CLK idles LOW, sample on rising edge
         adc.setFrequency(1200000); //  1.2 MHz
         adc.setBitsPerWord(8);
         adc.setBitJustification(false); // MSB first
@@ -53,13 +53,13 @@ public class Mcp3002 implements Adc<AdcChannel> {
     /**
      * Data transfer for reading is explained on page 15 of the datasheet.
      * - First five control bits are (for two-channel mode):
-     * - A 0 bit for padding
-     * - Start bit (1)
-     * - Two-channel mode indicator (1)
-     * - Channel select (0 = channel 0, 1 = channel 1)
-     * - MSBF vs. LSBF (0 = LSBF, 1 = MSBF)
-     * - Then, 10-bits of Don't Cares are transmitted while the slave responds with the
-     *   10-bit analog value at the same time.
+     *      - A 0 bit for padding
+     *      - Start bit (1)
+     *      - Two-channel mode indicator (1)
+     *      - Channel select (0 = channel 0, 1 = channel 1)
+     *      - MSBF vs. LSBF (0 = LSBF, 1 = MSBF)
+     * - Then, 11-bits of Don't Cares are transmitted while the slave responds with the
+     *   null bit + 10-bit analog value at the same time.
      */
     @Override
     public int analogRead(AdcChannel channel) throws IOException, IllegalStateException {

@@ -107,7 +107,7 @@ public class MainActivity extends Activity {
             int reading = adc.analogRead(AdcChannel.CHANNEL_1);
 
             // Convert reading to a percentage for the duty cycle
-            double duty = ((double) reading / Mcp3002.MAX_VALUE) * 100;
+            double duty = ((double) reading / adc.getMaxValue()) * 100;
             duty = correctValueIfNeeded(duty, 100, 0, 1);
 
             Timber.d("Channel 1: read %s, pwm duty %s", reading, duty);

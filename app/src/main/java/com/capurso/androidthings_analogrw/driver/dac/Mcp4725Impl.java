@@ -16,7 +16,7 @@ public class Mcp4725Impl extends Mcp4725 {
 
     public static final int DEFAULT_I2C_ADDRESS = 0x60;
 
-    private static final byte WRITE_MODE = 0x40;
+    private static final byte WRITE_REGISTER_NO_EEPROM_MODE = 0x40;
 
     private static final byte POWER_DOWN_DEFAULT_MODE = 0x00;
 
@@ -34,8 +34,8 @@ public class Mcp4725Impl extends Mcp4725 {
      * <p>
      * Three bytes are needed to be transmitted, total of 24 bits:
      * - A command byte (indicates the command the power-down mode)
-     * - Using write-to-DAC-only command (1 in bit 6) & default power-down mode (0's in bits 1-2)
-     * - 10 bits of data
+     *      - Using write-to-DAC-only command (1 in bit 6) & default power-down mode (0's in bits 1-2)
+     * - 12 bits of data
      * - 4 don't cares (using 0's here)
      */
     @Override
@@ -47,7 +47,7 @@ public class Mcp4725Impl extends Mcp4725 {
         }
 
         byte[] writeCmd = new byte[3];
-        writeCmd[0] = WRITE_MODE | POWER_DOWN_DEFAULT_MODE;
+        writeCmd[0] = WRITE_REGISTER_NO_EEPROM_MODE | POWER_DOWN_DEFAULT_MODE;
         writeCmd[1] = (byte) (val >> 4);
         writeCmd[2] = (byte) (val << 4);
         Timber.d("Writing to DAC MCP 4725: %s", Arrays.toString(writeCmd));
