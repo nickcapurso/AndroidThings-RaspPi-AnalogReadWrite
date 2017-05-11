@@ -104,24 +104,24 @@ public class MainActivity extends Activity {
         }
 
         private void readAndSetLedWithPwm() throws Exception {
-            int reading = adc.analogRead(AdcChannel.CHANNEL_1);
+            int reading = adc.analogRead(AdcChannel.CHANNEL_0);
 
             // Convert reading to a percentage for the duty cycle
             double duty = ((double) reading / adc.getMaxValue()) * 100;
             duty = correctValueIfNeeded(duty, 100, 0, 1);
 
-            Timber.d("Channel 1: read %s, pwm duty %s", reading, duty);
+            Timber.d("Channel 0: read %s, pwm duty %s", reading, duty);
             pwmLed.setDuty(duty);
         }
 
         private void readAndSetLedWithAnalog() throws Exception {
-            int reading = adc.analogRead(AdcChannel.CHANNEL_2);
+            int reading = adc.analogRead(AdcChannel.CHANNEL_1);
             reading = (int) correctValueIfNeeded(reading, adc.getMaxValue(), adc.getMinValue(), 1);
 
             // Convert from ADC's range to the DAC's range
             reading = (int) (((double) reading / adc.getMaxValue()) * dac.getMaxValue());
 
-            Timber.d("Channel 2: read %s, sending to DAC", reading);
+            Timber.d("Channel 1: read %s, sending to DAC", reading);
             dac.analogWrite(reading);
         }
     }
